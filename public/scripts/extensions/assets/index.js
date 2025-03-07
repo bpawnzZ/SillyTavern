@@ -3,10 +3,12 @@ TODO:
 */
 //const DEBUG_TONY_SAMA_FORK_MODE = true
 
+import { DOMPurify } from '../../../lib.js';
 import { getRequestHeaders, processDroppedFiles, eventSource, event_types } from '../../../script.js';
 import { deleteExtension, extensionNames, getContext, installExtension, renderExtensionTemplateAsync } from '../../extensions.js';
 import { POPUP_TYPE, Popup, callGenericPopup } from '../../popup.js';
 import { executeSlashCommands } from '../../slash-commands.js';
+import { accountStorage } from '../../util/AccountStorage.js';
 import { flashHighlight, getStringHash, isValidUrl } from '../../utils.js';
 export { MODULE_NAME };
 
@@ -184,6 +186,7 @@ function downloadAssetsList(url) {
                         const url = isValidUrl(asset['url']) ? asset['url'] : '';
                         const title = assetType === 'extension' ? `Extension repo/guide: ${url}` : 'Preview in browser';
                         const previewIcon = (assetType === 'extension' || assetType === 'character') ? 'fa-arrow-up-right-from-square' : 'fa-headphones-simple';
+                        const toolTag = assetType === 'extension' && asset['tool'];
 
                         const assetBlock = $('<i></i>')
                             .append(element)
@@ -193,11 +196,19 @@ function downloadAssetsList(url) {
                                             <a class="asset_preview" href="${url}" target="_blank" title="${title}">
                                                 <i class="fa-solid fa-sm ${previewIcon}"></i>
                                             </a>
+                                            ${toolTag ? '<span class="tag" title="Adds a function tool"><i class="fa-solid fa-sm fa-wrench"></i> Tool</span>' : ''}
                                         </span>
                                         <small class="asset-description">
                                             ${description}
                                         </small>
                                      </div>`);
+
+                        assetBlock.find('.tag').on('click', function (e) {
+                            const a = document.createElement('a');
+                            a.href = 'https://docs.sillytavern.app/for-contributors/function-calling/';
+                            a.target = '_blank';
+                            a.click();
+                        });
 
                         if (assetType === 'character') {
                             if (asset.highlight) {
@@ -354,7 +365,7 @@ async function openCharacterBrowser(forceDefault) {
     for (const character of characters.sort((a, b) => a.name.localeCompare(b.name))) {
         const listElement = template.find(character.highlight ? '.contestWinnersList' : '.featuredCharactersList');
         const characterElement = $(await renderExtensionTemplateAsync(MODULE_NAME, 'character', character));
-        const downloadButton  = characterElement.find('.characterAssetDownloadButton');
+        const downloadButton = characterElement.find('.characterAssetDownloadButton');
         const checkMark = characterElement.find('.characterAssetCheckMark');
         const isInstalled = isAssetInstalled('character', character.id);
 
@@ -422,14 +433,14 @@ jQuery(async () => {
     connectButton.on('click', async function () {
         const url = DOMPurify.sanitize(String(assetsJsonUrl.val()));
         const rememberKey = `Assets_SkipConfirm_${getStringHash(url)}`;
-        const skipConfirm = localStorage.getItem(rememberKey) === 'true';
+        const skipConfirm = accountStorage.getItem(rememberKey) === 'true';
 
         const confirmation = skipConfirm || await Popup.show.confirm('Loading Asset List', `<span>Are you sure you want to connect to the following url?</span><var>${url}</var>`, {
             customInputs: [{ id: 'assets-remember', label: 'Don\'t ask again for this URL' }],
             onClose: popup => {
                 if (popup.result) {
                     const rememberValue = popup.inputResults.get('assets-remember');
-                    localStorage.setItem(rememberKey, String(rememberValue));
+                    accountStorage.setItem(rememberKey, String(rememberValue));
                 }
             },
         });
